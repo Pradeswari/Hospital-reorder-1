@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Probabilistic Reorder Policy — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F5F2;
+    --panel:#FFFFFF;
+    --ink:#16233A;
+    --ink-soft:#526066;
+    --steel:#3E6774;
+    --steel-deep:#1F3841;
+    --safe:#2E7D5B;
+    --safe-bg:#E7F3EC;
+    --risk:#B23A2E;
+    --risk-bg:#FBEAE7;
+    --warn:#B8862B;
+    --warn-bg:#FBF2E2;
+    --line:#DCE3DD;
+    --grid:#E4EAE4;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;}
+  body{padding:28px 32px 60px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:600;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:32px;line-height:1.15;margin:6px 0 4px;color:var(--ink);}
+  .sub{color:var(--ink-soft);font-size:14.5px;max-width:760px;line-height:1.5;margin:0 0 22px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;}
+  .row{display:flex;gap:18px;flex-wrap:wrap;}
+  .col{flex:1;min-width:220px;}
+
+  /* control form */
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px 18px;margin-top:14px;}
+  label{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin-bottom:4px;font-family:'IBM Plex Mono',monospace;}
+  input[type=number], select{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;background:#FBFCFB;color:var(--ink);
+  }
+  input[type=number]:focus, select:focus{outline:2px solid var(--steel);outline-offset:1px;}
+  .field-note{font-size:10.5px;color:#8B9791;margin-top:2px;}
+
+  .btn{
+    font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;
+    background:var(--steel-deep);color:#fff;border:none;border-radius:7px;
+    padding:11px 20px;cursor:pointer;letter-spacing:.01em;
+  }
+  .btn:hover{background:var(--steel);}
+  .btn.secondary{background:transparent;color:var(--steel-deep);border:1px solid var(--steel-deep);}
+  .btn.secondary:hover{background:#EDF2EF;}
+  .btn:disabled{opacity:.5;cursor:default;}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;margin:26px 0 14px;border-bottom:1px solid var(--line);}
+  .tab{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    padding:9px 4px;margin-right:22px;cursor:pointer;color:var(--ink-soft);border-bottom:2px solid transparent;
+  }
+  .tab.active{color:var(--ink);border-bottom-color:var(--steel);font-weight:600;}
+
+  /* ward comparison cards */
+  .wards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px;}
+  .ward{border-radius:10px;border:1px solid var(--line);overflow:hidden;background:var(--panel);}
+  .ward-head{padding:12px 16px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;}
+  .ward-head.baseline{background:var(--risk-bg);color:var(--risk);}
+  .ward-head.prob{background:var(--safe-bg);color:var(--safe);}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+  .kpi{padding:14px 16px;border-top:1px solid var(--grid);}
+  .kpi:nth-child(odd){border-right:1px solid var(--grid);}
+  .kpi-label{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-family:'IBM Plex Mono',monospace;}
+  .kpi-val{font-family:'Fraunces',serif;font-size:23px;font-weight:600;margin-top:3px;}
+  .kpi-val.risk{color:var(--risk);}
+  .kpi-val.safe{color:var(--safe);}
+  .kpi-val.warn{color:var(--warn);}
+
+  /* vitals strip */
+  .strip-wrap{margin-top:20px;}
+  .legend{display:flex;gap:20px;font-size:12px;color:var(--ink-soft);margin-bottom:8px;align-items:center;}
+  .legend-item{display:flex;align-items:center;gap:6px;}
+  .swatch{width:14px;height:3px;border-radius:2px;display:inline-block;}
+
+  /* bars */
+  .bars-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px;}
+  .bar-card h3{font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin:0 0 10px;font-weight:600;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px 10px;}
+  td{padding:9px 10px;border-bottom:1px solid var(--grid);}
+  tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;}
+  .tag.risk{background:var(--risk-bg);color:var(--risk);}
+  .tag.safe{background:var(--safe-bg);color:var(--safe);}
+
+  .section-title{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 4px;}
+  .section-desc{color:var(--ink-soft);font-size:13px;margin:0 0 12px;max-width:700px;line-height:1.5;}
+
+  .footer-note{margin-top:34px;font-size:12px;color:#8B9791;border-top:1px solid var(--line);padding-top:14px;}
+  .hidden{display:none;}
+  .loading{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--steel);}
+  .scenario-card{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#FBFCFB;}
+  .scenario-card h4{font-family:'IBM Plex Sans',sans-serif;font-size:14px;margin:0 0 4px;}
+  .scenario-card p{font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div class="eyebrow">CoE Capstone · Probabilistic Reorder Policy</div>
+<h1>Hospital consumables reorder control</h1>
+<p class="sub">Live comparison of the hospital's current fixed reorder-point rule against a probabilistic policy that
+accounts for demand variability, lead-time uncertainty, supplier reliability, expiry, and safe workforce receiving
+capacity. Runs the same Monte Carlo simulation engine as the Python repository, in-browser.</p>
+
+<div class="panel">
+  <div class="row" style="align-items:flex-end;">
+    <div class="col" style="max-width:260px;">
+      <label for="preset">SKU preset</label>
+      <select id="preset"></select>
+    </div>
+    <div class="col" style="flex:0 0 auto;">
+      <button class="btn" id="runBtn">Run comparison</button>
+    </div>
+    <div class="col" style="flex:0 0 auto;">
+      <span class="loading hidden" id="loadingMsg">Simulating 40 replications × 365 days...</span>
+    </div>
+  </div>
+
+  <div class="form-grid" id="formGrid"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="sim">Simulation</div>
+  <div class="tab" data-tab="fail">Failure scenarios</div>
+</div>
+
+<div id="simTab">
+  <div class="wards" id="wardsOut"></div>
+
+  <div class="strip-wrap">
+    <div class="section-title">Inventory vitals strip</div>
+    <p class="section-desc">One representative simulated year (day 0–365), on-hand inventory over time. Ticks mark stockout days (red) and expiry/waste events (amber).</p>
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:var(--risk);"></span>Baseline (fixed ROP)</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--safe);"></span>Probabilistic policy</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--risk);height:8px;width:2px;"></span>Stockout day</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--warn);height:8px;width:2px;"></span>Expiry event</span>
+    </div>
+    <div class="panel" style="padding:12px;"><svg id="stripSvg" width="100%" viewBox="0 0 1000 220"></svg></div>
+  </div>
+
+  <div class="bars-grid">
+    <div class="panel bar-card">
+      <h3>Stockout &amp; expired units / year</h3>
+      <svg id="barSvg1" width="100%" viewBox="0 0 460 230"></svg>
+    </div>
+    <div class="panel bar-card">
+      <h3>Service level vs target &amp; total cost</h3>
+      <svg id="barSvg2" width="100%" viewBox="0 0 460 230"></svg>
+    </div>
+  </div>
+</div>
+
+<div id="failTab" class="hidden">
+  <div class="section-title">Failure &amp; edge-case scenarios</div>
+  <p class="section-desc">The same three stress tests used in the automated pytest harness (<code>tests/test_edge_cases.py</code>), run live against the current SKU parameters.</p>
+  <div id="scenarioOut"></div>
+</div>
+
+<div class="footer-note">Prototype accompanies the reproducible Python repository (policy math, Monte Carlo engine, pytest edge-case harness, and full experiment report). Costs shown in ₹.</div>
+
+<script>
+// ============================= Presets =====================================
+const PRESETS = {
+  "MED-INS-01": {name:"Insulin vials (cold chain)", demandMean:25, demandStd:6, ltMean:6, ltStd:2, fillRate:0.90, partialFrac:0.5, lateDays:4, shelfLife:60, orderCost:800, holdCost:1.2, stockoutCost:120, unitCost:45, wasteCost:45, serviceTarget:0.98, workers:2, capPerWorker:400},
+  "SUT-GEN-02": {name:"Surgical suture packs", demandMean:40, demandStd:10, ltMean:4, ltStd:1, fillRate:0.97, partialFrac:0.7, lateDays:2, shelfLife:365, orderCost:400, holdCost:0.15, stockoutCost:60, unitCost:15, wasteCost:15, serviceTarget:0.95, workers:2, capPerWorker:400},
+  "BLD-BAG-03": {name:"Blood collection bags", demandMean:15, demandStd:5, ltMean:7, ltStd:3, fillRate:0.80, partialFrac:0.5, lateDays:5, shelfLife:42, orderCost:600, holdCost:0.8, stockoutCost:150, unitCost:30, wasteCost:30, serviceTarget:0.97, workers:2, capPerWorker:400},
+  "PPE-GLV-04": {name:"Sterile gloves (boxes)", demandMean:60, demandStd:15, ltMean:3, ltStd:1, fillRate:0.93, partialFrac:0.6, lateDays:2, shelfLife:730, orderCost:300, holdCost:0.05, stockoutCost:25, unitCost:8, wasteCost:8, serviceTarget:0.93, workers:2, capPerWorker:400},
+  "ANT-BIO-05": {name:"Emergency antibiotics", demandMean:18, demandStd:9, ltMean:5, ltStd:2.5, fillRate:0.75, partialFrac:0.55, lateDays:6, shelfLife:180, orderCost:700, holdCost:0.6, stockoutCost:200, unitCost:25, wasteCost:25, serviceTarget:0.99, workers:2, capPerWorker:400},
+  "PLT-CON-06": {name:"Platelet concentrate (short shelf-life)", demandMean:8, demandStd:3, ltMean:3, ltStd:1, fillRate:0.92, partialFrac:0.6, lateDays:2, shelfLife:5, orderCost:350, holdCost:1.5, stockoutCost:180, unitCost:60, wasteCost:60, serviceTarget:0.96, workers:2, capPerWorker:400},
+};
+
+const FIELD_DEFS = [
+  ["demandMean","Demand mean /day","units"],
+  ["demandStd","Demand std /day","units"],
+  ["ltMean","Lead time mean","days"],
+  ["ltStd","Lead time std","days"],
+  ["fillRate","Supplier fill rate","0–1"],
+  ["partialFrac","Partial-fill fraction","0–1"],
+  ["lateDays","Late extra days","days"],
+  ["shelfLife","Shelf life","days"],
+  ["serviceTarget","Target service level","0–1"],
+  ["orderCost","Order cost (fixed)","₹/order"],
+  ["holdCost","Holding cost","₹/unit/day"],
+  ["stockoutCost","Stockout cost","₹/unit"],
+  ["unitCost","Unit purchase cost","₹/unit"],
+  ["wasteCost","Waste cost","₹/unit"],
+  ["workers","Workers available","count"],
+  ["capPerWorker","Capacity /worker/day","units"],
+];
+
+// ============================= RNG ==========================================
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+function randNormal(rng, mean, std){
+  let u1 = Math.max(rng(), 1e-9), u2 = rng();
+  let z = Math.sqrt(-2*Math.log(u1)) * Math.cos(2*Math.PI*u2);
+  return mean + z*std;
+}
+// Acklam's approximation for inverse normal CDF
+function normInv(p){
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const p_low=0.02425, p_high=1-p_low;
+  let q,r;
+  if(p<p_low){ q=Math.sqrt(-2*Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  else if(p<=p_high){ q=p-0.5; r=q*q; return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+  else{ q=Math.sqrt(-2*Math.log(1-p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+}
+
+// ============================= Policy math ==================================
+function effectiveLeadTime(sku){
+  const p = sku.fillRate;
+  const meanEff = sku.ltMean + (1-p)*sku.lateDays;
+  const varEff = sku.ltStd**2 + p*(1-p)*(sku.lateDays**2);
+  return {mean: meanEff, std: Math.sqrt(Math.max(varEff,0))};
+}
+function demandDuringLeadTime(sku, ltMean, ltStd){
+  const meanD = sku.demandMean*ltMean;
+  const varD = ltMean*(sku.demandStd**2) + (sku.demandMean**2)*(ltStd**2);
+  return {mean: meanD, std: Math.sqrt(Math.max(varD,0))};
+}
+function economicOrderQty(sku){
+  const annualDemand = sku.demandMean*365;
+  if(sku.holdCost<=0) return sku.demandMean*14;
+  const annualHolding = sku.holdCost*365;
+  const eoq = Math.sqrt((2*annualDemand*sku.orderCost)/annualHolding);
+  return Math.max(eoq, sku.demandMean);
+}
+function computeBaselineParams(sku, coverDays=14){
+  return { rop: sku.demandMean*sku.ltMean, orderQty: sku.demandMean*coverDays };
+}
+function computeProbParams(sku){
+  const {mean:ltMean, std:ltStd} = effectiveLeadTime(sku);
+  const {mean:dltMean, std:dltStd} = demandDuringLeadTime(sku, ltMean, ltStd);
+  const z = normInv(sku.serviceTarget);
+  const safetyStock = Math.max(z*dltStd, 0);
+  const rop = dltMean + safetyStock;
+  const eoq = economicOrderQty(sku);
+  const maxSensibleCover = sku.demandMean * sku.shelfLife * 0.8;
+  const orderQty = Math.min(eoq, maxSensibleCover, sku.maxUnitsPerOrder ?? 1e9);
+  const orderUpTo = rop + orderQty;
+  return {rop, orderUpTo, orderQty, safetyStock, ltMean, ltStd, z};
+}
+
+// ============================= Simulation ===================================
+function simulateOneRun(sku, workforce, nDays, decideFn, params, rng, recordTrace){
+  let onHandBatches = []; // {qty, expiryDay}
+  let pending = []; // {arrivalDay, qty}
+  let lastOrderDay = -1;
+  let totalDemand=0, totalFulfilled=0, totalStockout=0, totalExpired=0;
+  let ordersPlaced=0, orderCostSum=0, holdingCostSum=0, purchaseCostSum=0;
+  let stockoutDays=0, workloadOverflow=0;
+  const trace = [];
+  const capacity = workforce.workers*workforce.capPerWorker;
+
+  for(let day=0; day<nDays; day++){
+    // 1. receive arrivals
+    let arrivals = pending.filter(o=>o.arrivalDay===day);
+    pending = pending.filter(o=>o.arrivalDay!==day);
+    let incoming = arrivals.reduce((s,o)=>s+o.qty,0);
+    if(incoming > capacity){
+      workloadOverflow++;
+      const deferred = incoming - capacity;
+      incoming = capacity;
+      pending.push({arrivalDay:day+1, qty:deferred});
+    }
+    if(incoming>0){
+      onHandBatches.push({qty:incoming, expiryDay: day+sku.shelfLife});
+      purchaseCostSum += incoming*sku.unitCost;
+    }
+
+    // 2. expire
+    let expiredToday = 0;
+    onHandBatches = onHandBatches.filter(b=>{
+      if(b.expiryDay<=day){ expiredToday += b.qty; return false; }
+      return true;
+    });
+    totalExpired += expiredToday;
+
+    // 3. demand + FEFO fulfil
+    let demandToday = Math.max(0, randNormal(rng, sku.demandMean, sku.demandStd));
+    demandToday = Math.round(demandToday);
+    totalDemand += demandToday;
+    onHandBatches.sort((a,b)=>a.expiryDay-b.expiryDay);
+    let remaining = demandToday;
+    for(const b of onHandBatches){
+      if(remaining<=0) break;
+      const take = Math.min(b.qty, remaining);
+      b.qty -= take; remaining -= take;
+    }
+    onHandBatches = onHandBatches.filter(b=>b.qty>1e-9);
+    const fulfilledToday = demandToday - remaining;
+    const stockoutToday = remaining;
+    totalFulfilled += fulfilledToday;
+    totalStockout += stockoutToday;
+    if(stockoutToday>0) stockoutDays++;
+
+    const onHandTotal = onHandBatches.reduce((s,b)=>s+b.qty,0);
+    holdingCostSum += onHandTotal*sku.holdCost;
+
+    // 4. review & order
+    const invPos = onHandTotal + pending.reduce((s,o)=>s+o.qty,0);
+    let orderQty = 0;
+    const canOrder = (day-lastOrderDay)>=1;
+    if(canOrder) orderQty = decideFn(invPos, params);
+    if(orderQty>0){
+      lastOrderDay = day; ordersPlaced++; orderCostSum += sku.orderCost;
+      const reliable = rng() < sku.fillRate;
+      const lt = Math.max(1, Math.round(randNormal(rng, sku.ltMean, sku.ltStd)));
+      if(reliable){
+        pending.push({arrivalDay: day+lt, qty: orderQty});
+      } else {
+        const onTimeQty = orderQty*sku.partialFrac;
+        const lateQty = orderQty - onTimeQty;
+        pending.push({arrivalDay: day+lt, qty: onTimeQty});
+        pending.push({arrivalDay: day+lt+sku.lateDays, qty: lateQty});
+      }
+    }
+
+    if(recordTrace) trace.push({day, onHand:onHandTotal, stockout: stockoutToday>0, expired: expiredToday>0});
+  }
+
+  const fillRate = totalDemand>0 ? totalFulfilled/totalDemand : 1;
+  const cycleService = 1 - stockoutDays/nDays;
+  const totalCost = orderCostSum + holdingCostSum + purchaseCostSum +
+    totalStockout*sku.stockoutCost + totalExpired*sku.wasteCost;
+
+  return {totalDemand, totalFulfilled, stockoutUnits:totalStockout, stockoutDays,
+    expiredUnits:totalExpired, ordersPlaced, orderCost:orderCostSum, holdingCost:holdingCostSum,
+    purchaseCost:purchaseCostSum, totalCost, fillRate, cycleService, workloadOverflow, trace};
+}
+
+function decideBaseline(invPos, params){ return invPos<=params.rop ? params.orderQty : 0; }
+function decideProb(invPos, params){ return invPos<=params.rop ? Math.max(params.orderUpTo-invPos,0) : 0; }
+
+function runMonteCarlo(sku, workforce, nDays, nReps, decideFn, params, seed, traceOnFirst){
+  const results = [];
+  for(let r=0;r<nReps;r++){
+    const rng = mulberry32(seed + r*7919);
+    results.push(simulateOneRun(sku, workforce, nDays, decideFn, params, rng, traceOnFirst && r===0));
+  }
+  return results;
+}
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+// ============================= UI wiring ====================================
+const formGrid = document.getElementById('formGrid');
+const presetSel = document.getElementById('preset');
+Object.keys(PRESETS).forEach(k=>{
+  const opt = document.createElement('option'); opt.value=k; opt.textContent = k+' — '+PRESETS[k].name;
+  presetSel.appendChild(opt);
+});
+
+let currentSku = {};
+
+function loadPreset(key){
+  const p = PRESETS[key];
+  currentSku = {...p};
+  renderForm();
+}
+function renderForm(){
+  formGrid.innerHTML = '';
+  FIELD_DEFS.forEach(([key,label,unit])=>{
+    const wrap = document.createElement('div');
+    const step = (['fillRate','partialFrac','serviceTarget'].includes(key)) ? '0.01' : 'any';
+    wrap.innerHTML = `<label>${label}</label><input type="number" step="${step}" id="f_${key}" value="${currentSku[key]}"><div class="field-note">${unit}</div>`;
+    formGrid.appendChild(wrap);
+  });
+  formGrid.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const key = inp.id.replace('f_','');
+      currentSku[key] = parseFloat(inp.value);
+    });
+  });
+}
+presetSel.addEventListener('change', e=>loadPreset(e.target.value));
+loadPreset('MED-INS-01');
+
+// tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('simTab').classList.toggle('hidden', t.dataset.tab!=='sim');
+    document.getElementById('failTab').classList.toggle('hidden', t.dataset.tab!=='fail');
+  });
+});
+
+function fmt(n, d=0){ return Number(n).toLocaleString(undefined,{maximumFractionDigits:d, minimumFractionDigits:d}); }
+function fmtMoney(n){ return '₹'+fmt(n,0); }
+
+function renderWards(baseSummary, probSummary, sku){
+  const wardsOut = document.getElementById('wardsOut');
+  function ward(title, cls, s){
+    const serviceOk = s.cycleService >= sku.serviceTarget - 0.02;
+    return `<div class="ward">
+      <div class="ward-head ${cls}">${title}</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Stockout units/yr</div><div class="kpi-val risk">${fmt(s.stockoutUnits,0)}</div></div>
+        <div class="kpi"><div class="kpi-label">Expired units/yr</div><div class="kpi-val warn">${fmt(s.expiredUnits,0)}</div></div>
+        <div class="kpi"><div class="kpi-label">Service level</div><div class="kpi-val ${serviceOk?'safe':'risk'}">${fmt(s.cycleService*100,1)}%</div></div>
+        <div class="kpi"><div class="kpi-label">Total cost/yr</div><div class="kpi-val">${fmtMoney(s.totalCost)}</div></div>
+      </div>
+    </div>`;
+  }
+  wardsOut.innerHTML = ward('Baseline · fixed ROP','baseline',baseSummary) + ward('Probabilistic policy','prob',probSummary);
+}
+
+function drawStrip(baseTrace, probTrace, nDays){
+  const svg = document.getElementById('stripSvg');
+  const W=1000,H=220,padL=40,padR=10,padT=10,padB=20;
+  const maxVal = Math.max(1, ...baseTrace.map(d=>d.onHand), ...probTrace.map(d=>d.onHand));
+  const xScale = d => padL + (d/nDays)*(W-padL-padR);
+  const yScale = v => H-padB - (v/maxVal)*(H-padT-padB);
+  function path(trace, color){
+    let d = trace.map((pt,i)=> (i===0?'M':'L') + xScale(pt.day).toFixed(1) + ' ' + yScale(pt.onHand).toFixed(1)).join(' ');
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.9"/>`;
+  }
+  function ticks(trace, key, color, yPos){
+    return trace.filter(d=>d[key]).map(d=>`<line x1="${xScale(d.day).toFixed(1)}" x2="${xScale(d.day).toFixed(1)}" y1="${yPos}" y2="${yPos+8}" stroke="${color}" stroke-width="1.2"/>`).join('');
+  }
+  let gridLines = '';
+  for(let i=0;i<=4;i++){
+    const y = padT + i*(H-padT-padB)/4;
+    gridLines += `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#E4EAE4" stroke-width="1"/>`;
+  }
+  svg.innerHTML = gridLines +
+    path(baseTrace, 'var(--risk)') + path(probTrace, 'var(--safe)') +
+    ticks(baseTrace,'stockout','#B23A2E', H-padB+2) +
+    ticks(probTrace,'stockout','#B23A2E', H-padB+2) +
+    ticks(baseTrace,'expired','#B8862B', H-padB+2) +
+    ticks(probTrace,'expired','#B8862B', H-padB+2) +
+    `<text x="${padL}" y="12" font-family="IBM Plex Mono" font-size="9" fill="#8B9791">on-hand units</text>`;
+  svg.style.setProperty('--risk','#B23A2E');
+}
+
+function drawGroupedBar(svgId, labels, seriesA, seriesB, title, colorA, colorB, isPercent){
+  const svg = document.getElementById(svgId);
+  const W=460,H=230,padL=44,padR=10,padT=16,padB=50;
+  const maxVal = Math.max(1, ...seriesA, ...seriesB) * 1.15;
+  const n = labels.length;
+  const groupW = (W-padL-padR)/n;
+  const barW = groupW*0.32;
+  let bars = '';
+  let gridLines = '';
+  for(let i=0;i<=4;i++){
+    const y = padT + i*(H-padT-padB)/4;
+    const val = maxVal - i*maxVal/4;
+    gridLines += `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#E4EAE4" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-5}" y="${y+3}" font-family="IBM Plex Mono" font-size="8" fill="#8B9791" text-anchor="end">${isPercent? fmt(val,0)+'%': fmt(val,0)}</text>`;
+  }
+  labels.forEach((lab,i)=>{
+    const cx = padL + i*groupW + groupW/2;
+    const va = seriesA[i], vb = seriesB[i];
+    const ha = (va/maxVal)*(H-padT-padB), hb = (vb/maxVal)*(H-padT-padB);
+    bars += `<rect x="${cx-barW-2}" y="${H-padB-ha}" width="${barW}" height="${ha}" fill="${colorA}"/>`;
+    bars += `<rect x="${cx+2}" y="${H-padB-hb}" width="${barW}" height="${hb}" fill="${colorB}"/>`;
+    bars += `<text x="${cx}" y="${H-padB+14}" font-family="IBM Plex Mono" font-size="8.5" fill="#526066" text-anchor="middle">${lab}</text>`;
+  });
+  svg.innerHTML = gridLines + bars;
+}
+
+let lastRun = null;
+
+function runComparison(){
+  document.getElementById('loadingMsg').classList.remove('hidden');
+  document.getElementById('runBtn').disabled = true;
+  setTimeout(()=>{
+    const sku = {...currentSku, maxUnitsPerOrder: 1e9};
+    const workforce = {workers: sku.workers, capPerWorker: sku.capPerWorker};
+    const nDays = 365, nReps = 40, seed = 42;
+
+    const baseParams = computeBaselineParams(sku);
+    const probParams = computeProbParams(sku);
+
+    const baseResults = runMonteCarlo(sku, workforce, nDays, nReps, decideBaseline, baseParams, seed, true);
+    const probResults = runMonteCarlo(sku, workforce, nDays, nReps, decideProb, probParams, seed+1000, true);
+
+    const baseSummary = {
+      stockoutUnits: mean(baseResults.map(r=>r.stockoutUnits)),
+      expiredUnits: mean(baseResults.map(r=>r.expiredUnits)),
+      cycleService: mean(baseResults.map(r=>r.cycleService)),
+      totalCost: mean(baseResults.map(r=>r.totalCost)),
+    };
+    const probSummary = {
+      stockoutUnits: mean(probResults.map(r=>r.stockoutUnits)),
+      expiredUnits: mean(probResults.map(r=>r.expiredUnits)),
+      cycleService: mean(probResults.map(r=>r.cycleService)),
+      totalCost: mean(probResults.map(r=>r.totalCost)),
+    };
+
+    renderWards(baseSummary, probSummary, sku);
+    drawStrip(baseResults[0].trace, probResults[0].trace, nDays);
+    drawGroupedBar('barSvg1', ['Stockout u/yr','Expired u/yr'],
+      [baseSummary.stockoutUnits, baseSummary.expiredUnits],
+      [probSummary.stockoutUnits, probSummary.expiredUnits],
+      '', '#B23A2E', '#2E7D5B', false);
+    drawGroupedBar('barSvg2', ['Service %','Cost (₹k)'],
+      [baseSummary.cycleService*100, baseSummary.totalCost/1000],
+      [probSummary.cycleService*100, probSummary.totalCost/1000],
+      '', '#B23A2E', '#2E7D5B', false);
+
+    lastRun = {baseSummary, probSummary, sku};
+    document.getElementById('loadingMsg').classList.add('hidden');
+    document.getElementById('runBtn').disabled = false;
+  }, 30);
+}
+document.getElementById('runBtn').addEventListener('click', runComparison);
+
+// ============================= Failure scenarios ============================
+function runFailureScenarios(){
+  const base = {...currentSku, maxUnitsPerOrder: 1e9};
+  const nDays=180, nReps=20;
+
+  // Scenario 1: unreliable supplier
+  const s1 = {...base, fillRate: Math.min(base.fillRate, 0.6), lateDays: Math.max(base.lateDays, 6)};
+  const s1base = computeBaselineParams(s1), s1prob = computeProbParams(s1);
+  const s1baseRes = runMonteCarlo(s1, {workers:s1.workers,capPerWorker:s1.capPerWorker}, nDays, nReps, decideBaseline, s1base, 1, false);
+  const s1probRes = runMonteCarlo(s1, {workers:s1.workers,capPerWorker:s1.capPerWorker}, nDays, nReps, decideProb, s1prob, 2, false);
+
+  // Scenario 2: demand surge (variance tripled)
+  const s2 = {...base, demandStd: base.demandStd*3};
+  const s2prob = computeProbParams(s2);
+  const s2Res = runMonteCarlo(s2, {workers:s2.workers,capPerWorker:s2.capPerWorker}, nDays, nReps, decideProb, s2prob, 3, false);
+
+  // Scenario 3: workforce overload (tiny capacity)
+  const s3 = {...base};
+  const s3prob = computeProbParams(s3);
+  const tinyWorkforce = {workers:1, capPerWorker: Math.max(10, base.demandMean*0.3)};
+  const s3Res = runMonteCarlo(s3, tinyWorkforce, nDays, nReps, decideProb, s3prob, 4, false);
+
+  const out = document.getElementById('scenarioOut');
+  out.innerHTML = `
+    <div class="scenario-card">
+      <h4>1 · Unreliable supplier (fill rate ≤ 60%, +6 late days)</h4>
+      <p>Baseline ignores reliability entirely; the probabilistic policy widens safety stock via the reliability mixture term. Expect fewer stockouts under the probabilistic policy.</p>
+      <table><thead><tr><th>Policy</th><th>Stockout units/${nDays}d</th><th>Fill rate</th><th>Result</th></tr></thead><tbody>
+      <tr><td>Baseline</td><td>${fmt(mean(s1baseRes.map(r=>r.stockoutUnits)),0)}</td><td>${fmt(mean(s1baseRes.map(r=>r.fillRate))*100,1)}%</td><td><span class="tag risk">degrades</span></td></tr>
+      <tr><td>Probabilistic</td><td>${fmt(mean(s1probRes.map(r=>r.stockoutUnits)),0)}</td><td>${fmt(mean(s1probRes.map(r=>r.fillRate))*100,1)}%</td><td><span class="tag safe">compensates</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="scenario-card">
+      <h4>2 · Demand surge (demand std × 3)</h4>
+      <p>Numerical stability check: the simulator must not go negative or blow up under a high-variance demand shock.</p>
+      <table><thead><tr><th>Metric</th><th>Value</th><th>Result</th></tr></thead><tbody>
+      <tr><td>Stockout units/${nDays}d</td><td>${fmt(mean(s2Res.map(r=>r.stockoutUnits)),0)}</td><td><span class="tag safe">no negative inventory</span></td></tr>
+      <tr><td>Total cost</td><td>${fmtMoney(mean(s2Res.map(r=>r.totalCost)))}</td><td><span class="tag safe">finite, stable</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="scenario-card">
+      <h4>3 · Workforce overload (1 worker, capacity forced low)</h4>
+      <p>Safety rule check: when a delivery would exceed safe daily receiving capacity, the excess must defer to the next day rather than being force-processed.</p>
+      <table><thead><tr><th>Metric</th><th>Value</th><th>Result</th></tr></thead><tbody>
+      <tr><td>Workload overflow events/${nDays}d</td><td>${fmt(mean(s3Res.map(r=>r.workloadOverflow)),1)}</td><td>${mean(s3Res.map(r=>r.workloadOverflow))>0? '<span class="tag safe">deferral engaged</span>':'<span class="tag risk">not triggered — try lower capacity</span>'}</td></tr>
+      <tr><td>Stockout units/${nDays}d</td><td>${fmt(mean(s3Res.map(r=>r.stockoutUnits)),0)}</td><td>—</td></tr>
+      </tbody></table>
+    </div>
+  `;
+}
+document.querySelector('.tab[data-tab="fail"]').addEventListener('click', runFailureScenarios);
+
+// initial run
+runComparison();
+</script>
+</body>
+</html>

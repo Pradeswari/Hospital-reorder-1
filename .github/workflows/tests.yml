@@ -1,0 +1,45 @@
+name: Tests
+
+# Runs the full automated test harness (policy math + edge/failure-case
+# scenarios) automatically on every push and every pull request, across
+# multiple Python versions, so correctness is continuously verified rather
+# than relying on a contributor remembering to run pytest locally.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run automated test harness
+        run: python -m pytest tests/ -v
+
+      - name: Run baseline-vs-probabilistic experiment (smoke test)
+        run: python experiments/run_experiment.py
+
+      - name: Run sensitivity analysis (smoke test)
+        run: python experiments/run_sensitivity_analysis.py
