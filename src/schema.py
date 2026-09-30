@@ -111,6 +111,14 @@ class WorkforceConfig:
     max_units_receivable_per_worker_per_day: int = 400  # safe manual-handling throughput
     max_order_lines_per_worker_per_day: int = 15         # cognitive load cap on distinct SKU put-aways
 
+    def __post_init__(self):
+        if self.workers_available <= 0:
+            raise ValueError("workers_available must be > 0")
+        if self.max_units_receivable_per_worker_per_day <= 0:
+            raise ValueError("receiving capacity must be > 0")
+        if self.max_order_lines_per_worker_per_day <= 0:
+            raise ValueError("order-line capacity must be > 0")
+
     @property
     def daily_receiving_capacity(self) -> int:
         return self.workers_available * self.max_units_receivable_per_worker_per_day
@@ -121,3 +129,7 @@ class SimulationConfig:
     n_days: int = 365
     n_replications: int = 200
     random_seed: Optional[int] = 42
+
+    def __post_init__(self):
+        if self.n_days <= 0 or self.n_replications <= 0:
+            raise ValueError("n_days and n_replications must be > 0")
