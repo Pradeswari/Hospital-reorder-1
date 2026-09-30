@@ -72,6 +72,36 @@ class SKUConfig:
     demand_distribution: str = "normal"
     empirical_demand_samples: Optional[list] = None
 
+    def __post_init__(self):
+        """Validate safety-critical and simulation inputs at construction time."""
+        if not self.sku_id or not self.name:
+            raise ValueError("sku_id and name must be non-empty")
+        if self.demand_mean_per_day < 0 or self.demand_std_per_day < 0:
+            raise ValueError("demand mean/std must be >= 0")
+        if self.lead_time_mean_days <= 0 or self.lead_time_std_days < 0:
+            raise ValueError("lead-time mean must be > 0 and std must be >= 0")
+        if not 0.0 <= self.supplier_fill_rate <= 1.0:
+            raise ValueError("supplier_fill_rate must be between 0 and 1")
+        if not 0.0 <= self.partial_fill_fraction <= 1.0:
+            raise ValueError("partial_fill_fraction must be between 0 and 1")
+        if self.late_extra_days < 0:
+            raise ValueError("late_extra_days must be >= 0")
+        if self.shelf_life_days <= 0:
+            raise ValueError("shelf_life_days must be > 0")
+        if self.order_cost_fixed < 0 or self.holding_cost_per_unit_day < 0:
+            raise ValueError("order/holding costs must be >= 0")
+        if self.stockout_cost_per_unit < 0 or self.unit_cost < 0 or self.waste_cost_per_unit < 0:
+            raise ValueError("unit costs must be >= 0")
+        if not 0.0 < self.target_service_level < 1.0:
+            raise ValueError("target_service_level must be between 0 and 1")
+        if self.max_units_per_order <= 0 or self.min_order_interval_days <= 0:
+            raise ValueError("order limits/interval must be positive")
+        allowed = {"normal", "poisson", "gamma", "empirical"}
+        if self.demand_distribution not in allowed:
+            raise ValueError(f"demand_distribution must be one of {sorted(allowed)}")
+        if self.empirical_demand_samples is not None and any(x < 0 for x in self.empirical_demand_samples):
+            raise ValueError("empirical demand samples must be >= 0")
+
 
 @dataclass
 class WorkforceConfig:
