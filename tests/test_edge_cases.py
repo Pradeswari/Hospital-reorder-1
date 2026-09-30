@@ -301,5 +301,30 @@ class TestDemandDistributionSensitivity:
         assert prob_stockout < baseline_stockout
 
 
+# ---------------------------------------------------------------------------
+# 4. Input-boundary validation (Review 3)
+# ---------------------------------------------------------------------------
+
+class TestInputValidation:
+    def test_invalid_supplier_fill_rate_rejected(self):
+        with pytest.raises(ValueError):
+            make_sku(supplier_fill_rate=1.5)
+
+    def test_invalid_service_target_rejected(self):
+        with pytest.raises(ValueError):
+            make_sku(target_service_level=1.0)
+
+    def test_negative_demand_rejected(self):
+        with pytest.raises(ValueError):
+            make_sku(demand_mean_per_day=-1)
+
+    def test_invalid_workforce_capacity_rejected(self):
+        with pytest.raises(ValueError):
+            WorkforceConfig(workers_available=0)
+
+    def test_invalid_simulation_days_rejected(self):
+        with pytest.raises(ValueError):
+            SimulationConfig(n_days=0)
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
