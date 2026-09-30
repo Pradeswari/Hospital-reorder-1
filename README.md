@@ -1,6 +1,6 @@
 # Probabilistic Reorder Policy for Hospital Critical Consumables
 
-![Tests](https://github.com/Pradeswari/Hospital-reorder-policy/actions/workflows/tests.yml/badge.svg)
+![Tests](https://github.com/Pradeswari/Hospital-reorder-1/actions/workflows/tests.yml/badge.svg)
 
 **CoE Capstone Project** — a probabilistic reorder policy incorporating
 lead-time uncertainty and supplier reliability for a hospital managing
@@ -41,7 +41,7 @@ hospital_reorder/
 │   └── simulation.py             # day-stepped Monte Carlo engine (FEFO, expiry, workforce cap)
 │   └── demand_distributions.py   # Normal/Poisson/Gamma/Empirical demand sampling (sensitivity analysis)
 ├── tests/
-│   └── test_edge_cases.py        # 19 pytest cases: policy math + 6 edge/failure scenarios + 7 distribution-sensitivity cases
+│   └── test_edge_cases.py        # policy, edge/failure, distribution-sensitivity, and input-boundary validation tests
 ├── experiments/
 │   ├── run_experiment.py           # baseline vs probabilistic, 6-SKU Monte Carlo comparison, with 95% CIs
 │   └── run_sensitivity_analysis.py # same comparison under Poisson/Gamma/Empirical demand
@@ -61,7 +61,7 @@ hospital_reorder/
 ## Run it
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -v                       # test harness (19 tests)
+python -m pytest tests/ -v                       # automated test harness
 python experiments/run_experiment.py              # full experiment + report + chart (with 95% CIs)
 python experiments/run_sensitivity_analysis.py    # sensitivity analysis (Poisson/Gamma/Empirical demand)
 ```
@@ -88,3 +88,15 @@ life can realistically absorb — all while the simulator enforces a hard
 safe-workforce-capacity ceiling on receiving, so gains are never bought by
 unsafe staff workload. See `docs/architecture.md` and
 `docs/stakeholder_assumptions.md` for the full reasoning and its limits.
+
+
+## Review 3 documentation
+
+Review 3 adds explicit input-boundary validation and supporting documentation:
+
+- [Testing and CI](docs/testing.md)
+- [Error handling and input validation](docs/error_handling.md)
+- [Final validation](docs/final_validation.md)
+- [Review 3 changes](docs/review3_changes.md)
+
+The project is a Python simulation and decision-support prototype with a dashboard artifact. It does not claim to provide a REST API or external production database.
